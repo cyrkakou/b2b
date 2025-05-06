@@ -10,6 +10,8 @@ Ce script Node.js automatise le workflow Git en surveillant les changements dans
 - ✅ Création automatique des issues
 - ✅ Push automatique vers le dépôt distant
 - ✅ Ouverture et fermeture automatique des issues
+- ✅ Gestion intelligente des fichiers bloqués lors du push
+- ✅ Rapports détaillés sur les problèmes de push
 - ✅ Deux stratégies pour la détermination des milestones et issues :
   - Algorithme qui analyse les changements
   - Fichier tasks.md qui spécifie les tâches
@@ -50,8 +52,9 @@ Le fichier `config.json` contient les paramètres suivants :
 ```json
 {
   "repositoryPath": "/chemin/vers/votre/projet",
+  "monitorPath": "/chemin/vers/dossier/a/surveiller",
   "githubOwner": "votre-nom-utilisateur",
-  "githubRepo": "nom-du-repo",
+  "githubRepo": "https://github.com/votre-nom-utilisateur/nom-du-repo.git",
   "githubToken": "",
   "branch": "main",
   "autoCommit": true,
@@ -59,7 +62,15 @@ Le fichier `config.json` contient les paramètres suivants :
   "autoMilestone": true,
   "autoPush": true,
   "strategy": "algorithm",
-  "pollingInterval": 5000,
+  "pollingInterval": 2000,
+  "handleBlockedFiles": true,
+  "blockedFilesReportPath": "./logs/blocked_files",
+  "ignorePaths": [
+    "node_modules",
+    ".git",
+    "logs",
+    "git-automatique"
+  ],
   "commitConvention": {
     "types": ["feat", "fix", "docs", "style", "refactor", "test", "chore"],
     "defaultType": "feat"
@@ -69,9 +80,10 @@ Le fichier `config.json` contient les paramètres suivants :
 
 ### Paramètres
 
-- `repositoryPath` : Chemin absolu vers votre dépôt Git local
+- `repositoryPath` : Chemin absolu ou relatif vers votre dépôt Git local
+- `monitorPath` : Chemin du dossier à surveiller (si différent du dépôt Git)
 - `githubOwner` : Nom d'utilisateur GitHub du propriétaire du dépôt
-- `githubRepo` : Nom du dépôt GitHub
+- `githubRepo` : URL complète ou nom du dépôt GitHub
 - `githubToken` : Token GitHub (préférez utiliser le fichier .env pour des raisons de sécurité)
 - `branch` : Branche sur laquelle pousser les changements
 - `autoCommit` : Activer/désactiver la création automatique des commits
@@ -80,6 +92,9 @@ Le fichier `config.json` contient les paramètres suivants :
 - `autoPush` : Activer/désactiver le push automatique
 - `strategy` : Stratégie pour la détermination des milestones et issues (`algorithm` ou `tasksFile`)
 - `pollingInterval` : Intervalle en millisecondes entre la détection d'un changement et la création d'un commit
+- `handleBlockedFiles` : Activer/désactiver la gestion des fichiers bloqués lors du push
+- `blockedFilesReportPath` : Chemin où stocker les rapports de fichiers bloqués
+- `ignorePaths` : Liste des chemins à ignorer lors de la surveillance
 - `commitConvention` : Configuration de la convention de nommage des commits
 
 ## Utilisation
@@ -133,6 +148,19 @@ Pour fermer automatiquement une issue, incluez l'un des mots-clés suivants dans
 - `resolve #123`
 - `resolves #123`
 - `resolved #123`
+
+### Gestion des fichiers bloqués
+
+Le script gère intelligemment les situations où GitHub bloque un push en raison de la détection de secrets ou d'autres problèmes de sécurité :
+
+1. Lorsqu'un push est bloqué, le script crée automatiquement un rapport détaillé
+2. Le script identifie le fichier problématique à l'origine du blocage
+3. Une copie du fichier problématique est sauvegardée pour analyse ultérieure
+4. Le fichier est retiré du commit tout en étant conservé dans le système de fichiers local
+5. Le script tente à nouveau de pousser les changements sans le fichier problématique
+6. Un rapport complet est généré avec toutes les informations nécessaires
+
+Cette fonctionnalité permet d'éviter qu'un seul fichier problématique ne bloque l'ensemble du processus d'automatisation.
 
 ## Exemples
 

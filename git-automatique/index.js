@@ -322,10 +322,137 @@ class GitAutomation {
           logger.debug(`Pushing changes to origin/${branch}...`);
           const pushResult = await this.gitService.push('origin', branch);
 
-          if (pushResult) {
+          if (pushResult.success) {
             logger.info(`Push completed to origin/${branch}`);
           } else {
-            logger.error(`Failed to push changes to origin/${branch}`);
+            logger.error(`Failed to push changes to origin/${branch}: ${pushResult.error}`);
+
+            // Handle secret detection
+            if (pushResult.secretDetected && pushResult.blobId) {
+              logger.warn(`Secret detected in commit. Blob ID: ${pushResult.blobId}`);
+
+              // Check if handling blocked files is enabled
+              if (this.config.handleBlockedFiles !== false) {
+                // Create directory for reports if it doesn't exist
+                const reportDir = path.resolve(
+                  __dirname,
+                  this.config.blockedFilesReportPath || './logs/blocked_files'
+                );
+
+                if (!fs.existsSync(reportDir)) {
+                  try {
+                    fs.mkdirSync(reportDir, { recursive: true });
+                    logger.debug(`Created directory for blocked files reports: ${reportDir}`);
+                  } catch (mkdirError) {
+                    logger.error(`Failed to create directory for reports: ${mkdirError.message}`);
+                  }
+                }
+
+                // Create a report file for the blocked push with timestamp
+                const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '-');
+                const reportPath = path.join(reportDir, `blocked_push_${timestamp}.txt`);
+                const reportContent = `
+Push Blocked Report
+==================
+Date: ${new Date().toISOString()}
+Reason: GitHub Secret Detection
+Blob ID: ${pushResult.blobId}
+${pushResult.unblockUrl ? `Unblock URL: ${pushResult.unblockUrl}` : ''}
+
+Error Details:
+${pushResult.errorDetails || 'No detailed error information available'}
+`;
+
+                try {
+                  fs.writeFileSync(reportPath, reportContent);
+                  logger.info(`Created blocked push report at ${reportPath}`);
+                } catch (reportError) {
+                  logger.error(`Failed to create blocked push report: ${reportError.message}`);
+                }
+
+                // Try to find the file containing the secret
+                const filePath = await this.gitService.findFileByBlobId(pushResult.blobId);
+
+                if (filePath) {
+                  logger.info(`Found file containing secret: ${filePath}`);
+
+                  // Add the file to the report
+                  try {
+                    fs.appendFileSync(reportPath, `\nFile containing secret: ${filePath}\n`);
+
+                    // Copy the problematic file to the report directory for analysis
+                    const sourceFilePath = path.join(this.config.repositoryPath, filePath);
+                    const targetFilePath = path.join(reportDir, `blocked_file_${path.basename(filePath)}`);
+
+                    if (fs.existsSync(sourceFilePath)) {
+                      fs.copyFileSync(sourceFilePath, targetFilePath);
+                      logger.info(`Copied problematic file to ${targetFilePath} for analysis`);
+                      fs.appendFileSync(reportPath, `\nCopy of file saved to: ${targetFilePath}\n`);
+                    }
+
+                    logger.info(`Updated report with file information`);
+                  } catch (appendError) {
+                    logger.error(`Failed to update report: ${appendError.message}`);
+                  }
+
+                  // Remove the file from the last commit
+                  const removeResult = await this.gitService.removeFileFromLastCommit(filePath);
+
+                  if (removeResult) {
+                    logger.info(`Removed ${filePath} from last commit`);
+
+                    // Try pushing again without the problematic file
+                    logger.info(`Attempting to push again without the problematic file...`);
+                    const retryPushResult = await this.gitService.push('origin', branch);
+
+                    if (retryPushResult.success) {
+                      logger.info(`Successfully pushed changes to ${branch} after removing problematic file`);
+
+                      // Add a note to the report
+                      try {
+                        fs.appendFileSync(reportPath, `\nStatus: Push successful after removing this file from commit\n`);
+                      } catch (appendError) {
+                        logger.error(`Failed to update report: ${appendError.message}`);
+                      }
+                    } else {
+                      logger.error(`Failed to push even after removing problematic file: ${retryPushResult.error}`);
+
+                      // Add a note to the report
+                      try {
+                        fs.appendFileSync(reportPath, `\nStatus: Push still failed after removing this file\nAdditional error: ${retryPushResult.error}\n`);
+                      } catch (appendError) {
+                        logger.error(`Failed to update report: ${appendError.message}`);
+                      }
+
+                      // If there are multiple problematic files, try to handle them recursively
+                      if (retryPushResult.secretDetected && retryPushResult.blobId && retryPushResult.blobId !== pushResult.blobId) {
+                        logger.info(`Another problematic file detected. Will handle in next cycle.`);
+                      }
+                    }
+                  } else {
+                    logger.error(`Failed to remove ${filePath} from last commit`);
+
+                    // Add a note to the report
+                    try {
+                      fs.appendFileSync(reportPath, `\nStatus: Failed to remove file from commit\n`);
+                    } catch (appendError) {
+                      logger.error(`Failed to update report: ${appendError.message}`);
+                    }
+                  }
+                } else {
+                  logger.warn(`Could not find file for blob ID ${pushResult.blobId}`);
+
+                  // Add a note to the report
+                  try {
+                    fs.appendFileSync(reportPath, `\nStatus: Could not identify the specific file containing the secret\n`);
+                  } catch (appendError) {
+                    logger.error(`Failed to update report: ${appendError.message}`);
+                  }
+                }
+              } else {
+                logger.info(`Handling of blocked files is disabled in configuration. Skipping remediation.`);
+              }
+            }
           }
         } else {
           logger.info('Automatic push is disabled. Changes committed but not pushed.');

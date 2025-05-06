@@ -11,6 +11,8 @@
   "autoPush": true,
   "strategy": "algorithm",
   "pollingInterval": 2000,
+  "handleBlockedFiles": true,
+  "blockedFilesReportPath": "./logs/blocked_files",
   "ignorePaths": [
     "node_modules",
     ".git",
