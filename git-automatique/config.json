@@ -1,0 +1,34 @@
+{
+  "repositoryPath": "../",
+  "monitorPath": "../test-folder",
+  "githubOwner": "cyrkakou",
+  "githubRepo": "b2b",
+  "githubToken": "",
+  "branch": "main",
+  "autoCommit": true,
+  "autoIssue": false,
+  "autoMilestone": false,
+  "autoPush": true,
+  "strategy": "algorithm",
+  "pollingInterval": 2000,
+  "ignorePaths": [
+    "node_modules",
+    ".git",
+    "logs",
+    "git-automatique"
+  ],
+  "commitConvention": {
+    "types": ["feat", "fix", "docs", "style", "refactor", "test", "chore"],
+    "defaultType": "feat"
+  },
+  "logging": {
+    "enabled": true,
+    "level": "debug",
+    "consoleLevel": "debug",
+    "filePath": "./logs/automation-%DATE%.log",
+    "maxFiles": "14d",
+    "maxSize": "20m",
+    "patchConsole": true,
+    "preserveConsole": true
+  }
+}

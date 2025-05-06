@@ -1,0 +1,61 @@
+/* Appointment calendar customization */
+.fc-event {
+    cursor: pointer;
+    padding: 4px;
+    margin: 2px 0;
+    border-radius: 3px;
+}
+
+.fc-event.pending {
+    background-color: #FFA800;
+    border-color: #FF9800;
+}
+
+.fc-event.approved {
+    background-color: #1BC5BD;
+    border-color: #0BB7AF;
+}
+
+.fc-event.rejected {
+    background-color: #F64E60;
+    border-color: #EE2D41;
+}
+
+/* Business hours highlight */
+.fc-businessHours {
+    background-color: rgba(27, 197, 189, 0.1);
+}
+
+/* Modal customization */
+#appointmentDetailsModal .bullet-bar {
+    width: 4px;
+    height: auto;
+    border-radius: 2px;
+}
+
+#appointmentDetailsModal .appointment-actions {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #ECF0F3;
+}
+
+#appointmentDetailsModal .label {
+    min-width: 80px;
+    text-align: center;
+}
+
+/* Status label colors */
+.label-light-warning {
+    color: #FFA800;
+    background-color: rgba(255, 168, 0, 0.1);
+}
+
+.label-light-success {
+    color: #1BC5BD;
+    background-color: rgba(27, 197, 189, 0.1);
+}
+
+.label-light-danger {
+    color: #F64E60;
+    background-color: rgba(246, 78, 96, 0.1);
+}

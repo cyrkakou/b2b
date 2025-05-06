@@ -1,0 +1,15 @@
+.ui-state-highlight {
+    height: 60px;
+    background-color: rgba(255, 184, 34, 0.1);
+}
+.item{
+    cursor: hand;
+    cursor: pointer;
+}
+.item:hover{
+    background: #FFF4DE !important;
+}
+.item:hover .symbol .symbol-label{
+    background: #ffffff !important;
+    color: #FFA800 !important;
+}
