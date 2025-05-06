@@ -1,19 +1,21 @@
-# Script d'Automatisation Git
+# Git Automatique
 
-Ce script Node.js automatise le workflow Git en surveillant les changements dans la codebase et en gérant automatiquement les commits, milestones, issues et pushes.
+Ce script Node.js automatise entièrement le workflow Git en surveillant les changements dans la codebase et en gérant automatiquement les commits, milestones, issues et pushes.
 
 ## Fonctionnalités
 
-- ✅ Surveillance continue des changements dans la codebase
-- ✅ Création automatique des commits avec messages standardisés
-- ✅ Création automatique des milestones
-- ✅ Création automatique des issues
-- ✅ Push automatique vers le dépôt distant
-- ✅ Ouverture et fermeture automatique des issues
-- ✅ Gestion intelligente des fichiers bloqués lors du push
-- ✅ Rapports détaillés sur les problèmes de push
-- ✅ Deux stratégies pour la détermination des milestones et issues :
-  - Algorithme qui analyse les changements
+- ✅ **Surveillance continue** des changements dans la codebase
+- ✅ **Auto Commit**: Création automatique des commits avec messages intelligents et descriptifs
+- ✅ **Auto Push**: Push automatique vers le dépôt distant
+- ✅ **Auto Milestone**: Création et gestion automatique des milestones avec dates d'échéance
+- ✅ **Auto Issue**: Création automatique des issues basées sur les changements de fichiers
+- ✅ **Auto Status Update**: Mise à jour automatique du statut des issues basée sur les messages de commit
+- ✅ **Smart Commit Messages**: Génération de messages de commit descriptifs basés sur l'analyse des fichiers
+- ✅ **Intelligent Labeling**: Application automatique d'étiquettes appropriées aux issues
+- ✅ **Blocked Files Handling**: Détection et gestion des fichiers qui bloquent les pushes (ex: fichiers avec secrets)
+- ✅ **Rapports détaillés** sur les problèmes de push
+- ✅ **Deux stratégies** pour la détermination des milestones et issues:
+  - Algorithme intelligent qui analyse les changements
   - Fichier tasks.md qui spécifie les tâches
 
 ## Prérequis
@@ -26,24 +28,24 @@ Ce script Node.js automatise le workflow Git en surveillant les changements dans
 
 1. Clonez ce dépôt ou copiez les fichiers dans votre projet :
 
-```bash
-git clone https://github.com/votre-nom-utilisateur/git-automation-script.git
-cd git-automation-script
-```
+   ```bash
+   git clone https://github.com/votre-nom-utilisateur/git-automation-script.git
+   cd git-automation-script
+   ```
 
 2. Installez les dépendances :
 
-```bash
-npm install
-```
+   ```bash
+   npm install
+   ```
 
 3. Configurez le script en modifiant le fichier `config.json` selon vos besoins.
 
 4. Créez un fichier `.env` à la racine du projet et ajoutez votre token GitHub :
 
-```
-GITHUB_TOKEN=votre_token_github
-```
+   ```env
+   GITHUB_TOKEN=votre_token_github
+   ```
 
 ## Configuration
 
@@ -72,8 +74,18 @@ Le fichier `config.json` contient les paramètres suivants :
     "git-automatique"
   ],
   "commitConvention": {
-    "types": ["feat", "fix", "docs", "style", "refactor", "test", "chore"],
+    "types": ["feat", "fix", "docs", "style", "refactor", "test", "chore", "perf", "ci"],
     "defaultType": "feat"
+  },
+  "logging": {
+    "enabled": true,
+    "level": "debug",
+    "consoleLevel": "debug",
+    "filePath": "./logs/automation-%DATE%.log",
+    "maxFiles": "14d",
+    "maxSize": "20m",
+    "patchConsole": true,
+    "preserveConsole": true
   }
 }
 ```
@@ -135,9 +147,52 @@ Description de l'issue 3
 
 Chaque titre de niveau 1 (`#`) représente une milestone, et chaque titre de niveau 2 (`##`) représente une issue associée à cette milestone.
 
+## Fonctionnalités avancées
+
+### Smart Commit Messages
+
+Le script analyse les fichiers modifiés pour générer des messages de commit significatifs suivant le format de commits conventionnels:
+
+```text
+type(scope): description
+```
+
+Par exemple:
+
+- `feat(auth): add user authentication`
+- `fix(api): resolve data fetching issue`
+- `docs(readme): update installation instructions`
+
+Le script:
+
+1. Détermine le type de changement (feat, fix, docs, style, etc.) en analysant les extensions et chemins des fichiers
+2. Identifie le scope en analysant la structure des dossiers
+3. Génère une description pertinente basée sur le type de changement et les fichiers modifiés
+4. Ajoute une liste des fichiers modifiés pour les commits importants
+
+### Auto Issue Creation
+
+Lorsque des changements sont détectés, le script peut automatiquement créer des issues:
+
+1. Regroupe les fichiers liés par composant
+2. Crée des titres et descriptions d'issues détaillés
+3. Attribue des étiquettes appropriées
+4. Lie les issues au milestone du sprint actuel
+5. Assigne les issues au propriétaire du dépôt
+
+### Auto Status Updates
+
+Le script peut automatiquement mettre à jour le statut des issues basé sur les messages de commit:
+
+1. Extrait les numéros d'issues des messages de commit (ex: `fixes #123`)
+2. Ajoute des commentaires aux issues référencées avec les détails du commit
+3. Ferme les issues lorsque c'est approprié
+4. Met à jour les étiquettes des issues en fonction des changements
+5. Ferme automatiquement les milestones lorsque toutes les issues sont résolues
+
 ### Fermeture automatique des issues
 
-Pour fermer automatiquement une issue, incluez l'un des mots-clés suivants dans votre message de commit, suivi du numéro de l'issue :
+Pour fermer automatiquement une issue, incluez l'un des mots-clés suivants dans votre message de commit, suivi du numéro de l'issue:
 
 - `close #123`
 - `closes #123`
@@ -148,6 +203,8 @@ Pour fermer automatiquement une issue, incluez l'un des mots-clés suivants dans
 - `resolve #123`
 - `resolves #123`
 - `resolved #123`
+
+Le script supporte également les références multiples (ex: `fixes #123, #124, #125`) et les références croisées entre dépôts.
 
 ### Gestion des fichiers bloqués
 

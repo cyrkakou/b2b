@@ -219,37 +219,121 @@ class GitAutomation {
     // Otherwise, use the algorithm to determine issues
     logger.debug('Using algorithm strategy for issue creation');
     const issues = [];
-    const type = this.gitService.determineCommitType(diffs);
 
-    // Group files by folder
-    const folderGroups = diffs.reduce((acc, file) => {
-      const folder = file.split('/')[0] || 'root';
-      if (!acc[folder]) acc[folder] = [];
-      acc[folder].push(file);
-      return acc;
-    }, {});
+    // Get the current sprint milestone or create a new one
+    const milestoneId = await this.githubService.getCurrentSprintMilestone();
+    if (!milestoneId) {
+      logger.warn('Failed to create or get milestone. Issues will be created without milestone.');
+    }
+
+    // Determine appropriate labels for the changes
+    const labels = await this.githubService.determineLabelsForChanges(diffs);
+    logger.debug(`Determined labels for changes: ${labels.join(', ')}`);
+
+    // Get repository info to determine assignees
+    const repoInfo = await this.githubService.getRepositoryInfo();
+    let defaultAssignee = [];
+
+    if (repoInfo && repoInfo.owner && repoInfo.owner.login) {
+      defaultAssignee = [repoInfo.owner.login];
+      logger.debug(`Using repository owner as default assignee: ${defaultAssignee[0]}`);
+    }
+
+    // Analyze the changes to create more meaningful issues
+    const { type } = this.gitService.analyzeChanges(diffs);
+
+    // Group files by folder with more intelligent grouping
+    const folderGroups = this.groupFilesByComponent(diffs);
 
     // Create an issue for each group of files
-    for (const [folder, files] of Object.entries(folderGroups)) {
+    for (const [component, files] of Object.entries(folderGroups)) {
       if (files.length > 0) {
-        const title = `${type}: Changes in ${folder}`;
-        const body = `Modified files:\n${files.map(f => `- ${f}`).join('\n')}`;
+        // Create a more descriptive title
+        const title = `${type}: ${files.length > 3 ? 'Multiple changes' : 'Changes'} in ${component}`;
 
-        const milestoneTitle = `Sprint ${new Date().toISOString().slice(0, 10)}`;
-        const milestoneDesc = `Automatic milestone for changes on ${new Date().toISOString().slice(0, 10)}`;
+        // Create a more detailed body with file list and change type
+        const body = `## Automatic Issue for ${type} changes
 
-        const milestoneId = await this.githubService.createMilestone(milestoneTitle, milestoneDesc);
+### Component: ${component}
 
-        if (milestoneId) {
-          const issueId = await this.githubService.createIssue(title, body, milestoneId);
-          if (issueId) {
-            issues.push(issueId);
-          }
+${type === 'feat' ? 'New features or enhancements' :
+  type === 'fix' ? 'Bug fixes' :
+  type === 'docs' ? 'Documentation updates' :
+  type === 'style' ? 'Style/UI changes' :
+  type === 'refactor' ? 'Code refactoring' :
+  type === 'test' ? 'Test updates' :
+  'Changes'} in the ${component} component.
+
+### Modified files:
+${files.map(f => `- \`${f}\``).join('\n')}
+
+This issue was automatically created by the git-automatique system.
+`;
+
+        // Create the issue with labels and assignees
+        const issueId = await this.githubService.createIssue(
+          title,
+          body,
+          milestoneId,
+          labels,
+          defaultAssignee
+        );
+
+        if (issueId) {
+          logger.info(`Created issue #${issueId} for changes in ${component}`);
+          issues.push(issueId);
         }
       }
     }
 
     return issues;
+  }
+
+  /**
+   * Group files by component more intelligently
+   * @param {Array} diffs - List of changed files
+   * @returns {Object} - Files grouped by component
+   */
+  groupFilesByComponent(diffs) {
+    // Define common component patterns
+    const componentPatterns = [
+      { regex: /^(src|app)\/components\/([^\/]+)\//, group: (matches) => `${matches[1]}/components/${matches[2]}` },
+      { regex: /^(src|app)\/([^\/]+)\//, group: (matches) => matches[2] },
+      { regex: /^([^\/]+)\//, group: (matches) => matches[1] },
+    ];
+
+    // Group files by component
+    const groups = {};
+
+    for (const file of diffs) {
+      let matched = false;
+
+      // Try to match file to a component pattern
+      for (const pattern of componentPatterns) {
+        const matches = file.match(pattern.regex);
+        if (matches) {
+          const component = pattern.group(matches);
+          if (!groups[component]) {
+            groups[component] = [];
+          }
+          groups[component].push(file);
+          matched = true;
+          break;
+        }
+      }
+
+      // If no pattern matched, use the first directory or 'root'
+      if (!matched) {
+        const parts = file.split('/');
+        const component = parts.length > 1 ? parts[0] : 'root';
+        if (!groups[component]) {
+          groups[component] = [];
+        }
+        groups[component].push(file);
+      }
+    }
+
+    return groups;
   }
 
   /**
@@ -458,25 +542,126 @@ ${pushResult.errorDetails || 'No detailed error information available'}
           logger.info('Automatic push is disabled. Changes committed but not pushed.');
         }
 
-        // Handle issues if enabled
-        if (this.config.autoIssue && issues.length > 0) {
-          // Extract issue numbers to close from commit message
-          const issueNumbersToClose = this.githubService.extractIssueNumbers(commitMessage);
-
-          // Close issues if necessary
-          if (issueNumbersToClose.length > 0) {
-            logger.info(`Closing issues: ${issueNumbersToClose.join(', ')}`);
-            for (const issueNumber of issueNumbersToClose) {
-              await this.githubService.closeIssue(issueNumber);
-            }
-          }
-        }
+        // Handle status updates
+        await this.handleStatusUpdates(commitMessage, diffs, issues);
       } else {
         logger.info('Automatic commit is disabled. Changes detected but not committed.');
       }
     } catch (error) {
       logger.error(`Error processing changes: ${error.message}`);
       logger.debug(`Stack trace: ${error.stack}`);
+    }
+  }
+
+  /**
+   * Handle status updates based on commit message and changes
+   * @param {string} commitMessage - Commit message
+   * @param {Array} diffs - List of changed files
+   * @param {Array} createdIssues - List of issues created for these changes
+   * @returns {Promise<void>}
+   */
+  async handleStatusUpdates(commitMessage, diffs, createdIssues = []) {
+    try {
+      logger.info('Processing status updates...');
+
+      // Extract issue numbers from commit message
+      const issueNumbers = this.githubService.extractIssueNumbers(commitMessage);
+
+      // Combine with any issues created for these changes
+      const allIssues = [...new Set([...issueNumbers, ...createdIssues])];
+
+      if (allIssues.length === 0) {
+        logger.debug('No issues to update');
+        return;
+      }
+
+      logger.info(`Found ${allIssues.length} issues to update: ${allIssues.join(', ')}`);
+
+      // Get labels for the changes
+      const labels = await this.githubService.determineLabelsForChanges(diffs);
+
+      // Process each issue
+      for (const issueNumber of allIssues) {
+        // Get the issue to check its current state
+        const issues = await this.githubService.getIssues('all', true);
+        const issue = issues.find(i => i.number === issueNumber);
+
+        if (!issue) {
+          logger.warn(`Issue #${issueNumber} not found`);
+          continue;
+        }
+
+        // Add a comment with the commit information
+        const commentBody = `This issue was referenced in commit with message:
+\`\`\`
+${commitMessage}
+\`\`\`
+
+Changed files:
+${diffs.map(file => `- \`${file}\``).join('\n')}`;
+
+        await this.githubService.addIssueComment(issueNumber, commentBody);
+        logger.debug(`Added comment to issue #${issueNumber}`);
+
+        // Update the issue with additional labels
+        if (labels.length > 0) {
+          // Combine existing labels with new ones
+          const existingLabels = issue.labels.map(label => label.name);
+          const combinedLabels = [...new Set([...existingLabels, ...labels])];
+
+          await this.githubService.updateIssue(issueNumber, { labels: combinedLabels });
+          logger.debug(`Updated issue #${issueNumber} with labels: ${labels.join(', ')}`);
+        }
+
+        // Close the issue if the commit message indicates it should be closed
+        if (issueNumbers.includes(issueNumber)) {
+          await this.githubService.closeIssue(issueNumber);
+          logger.info(`Closed issue #${issueNumber}`);
+
+          // If this issue is part of a milestone, check if all issues in the milestone are closed
+          if (issue.milestone) {
+            await this.checkMilestoneCompletion(issue.milestone.number);
+          }
+        }
+      }
+    } catch (error) {
+      logger.error(`Failed to handle status updates: ${error.message}`);
+    }
+  }
+
+  /**
+   * Check if a milestone is complete and close it if all issues are closed
+   * @param {number} milestoneNumber - Milestone number to check
+   * @returns {Promise<void>}
+   */
+  async checkMilestoneCompletion(milestoneNumber) {
+    try {
+      logger.debug(`Checking completion status of milestone #${milestoneNumber}`);
+
+      // Get all issues for this milestone
+      const issues = await this.githubService.getIssues('all', true);
+      const milestoneIssues = issues.filter(issue =>
+        issue.milestone && issue.milestone.number === milestoneNumber
+      );
+
+      // If there are no issues, don't close the milestone
+      if (milestoneIssues.length === 0) {
+        logger.debug(`No issues found for milestone #${milestoneNumber}`);
+        return;
+      }
+
+      // Check if all issues are closed
+      const openIssues = milestoneIssues.filter(issue => issue.state === 'open');
+
+      if (openIssues.length === 0) {
+        logger.info(`All issues in milestone #${milestoneNumber} are closed. Closing milestone.`);
+        await this.githubService.closeMilestone(milestoneNumber);
+        logger.info(`Closed milestone #${milestoneNumber}`);
+      } else {
+        logger.debug(`Milestone #${milestoneNumber} has ${openIssues.length} open issues. Not closing.`);
+      }
+    } catch (error) {
+      logger.error(`Failed to check milestone completion: ${error.message}`);
     }
   }
 
