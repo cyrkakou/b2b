@@ -1,8 +1,8 @@
 {
   "repositoryPath": "../",
-  "monitorPath": "../test-folder",
+  "monitorPath": "../",
   "githubOwner": "cyrkakou",
-  "githubRepo": "b2b",
+  "githubRepo": "https://github.com/cyrkakou/b2b.git",
   "githubToken": "",
   "branch": "main",
   "autoCommit": true,
