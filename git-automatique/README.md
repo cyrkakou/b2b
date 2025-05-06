@@ -2,6 +2,16 @@
 
 Ce script Node.js automatise entièrement le workflow Git en surveillant les changements dans la codebase et en gérant automatiquement les commits, milestones, issues et pushes.
 
+## Architecture
+
+Git Automatique suit les principes SOLID avec une architecture orientée services:
+
+- **Services**: Services séparés pour Git, GitHub, issues, milestones, etc.
+- **Models**: Modèles de données pour les issues, milestones, commits, etc.
+- **Utils**: Fonctions utilitaires pour les opérations sur les fichiers, la gestion des chemins, la manipulation de chaînes, etc.
+- **Config**: Gestion et validation de la configuration
+- **Error Handling**: Classes d'erreur personnalisées pour différents scénarios
+
 ## Fonctionnalités
 
 - ✅ **Surveillance continue** des changements dans la codebase
@@ -109,12 +119,60 @@ Le fichier `config.json` contient les paramètres suivants :
 - `ignorePaths` : Liste des chemins à ignorer lors de la surveillance
 - `commitConvention` : Configuration de la convention de nommage des commits
 
+## Structure du projet
+
+```bash
+git-automatique/
+├── src/
+│   ├── config/
+│   │   └── config.service.js
+│   ├── models/
+│   │   ├── commit.model.js
+│   │   ├── config.model.js
+│   │   ├── issue.model.js
+│   │   └── milestone.model.js
+│   ├── services/
+│   │   ├── git.service.js
+│   │   ├── github.service.js
+│   │   └── ...
+│   ├── utils/
+│   │   ├── errors/
+│   │   │   ├── base-error.js
+│   │   │   └── ...
+│   │   ├── file.util.js
+│   │   ├── logger.js
+│   │   ├── path.util.js
+│   │   ├── service-container.js
+│   │   ├── string.util.js
+│   │   └── task-parser.util.js
+│   ├── git-automation.js
+│   └── index.js
+├── tests/
+│   ├── models/
+│   ├── services/
+│   ├── utils/
+│   └── setup.js
+├── .eslintrc.json
+├── .gitignore
+├── babel.config.js
+├── config.json
+├── jest.config.js
+├── package.json
+└── README.md
+```
+
 ## Utilisation
 
 ### Démarrer le script
 
 ```bash
-node index.js
+npm start
+```
+
+Pour le développement avec redémarrage automatique:
+
+```bash
+npm run dev
 ```
 
 Le script commencera à surveiller les changements dans votre dépôt et à automatiser le workflow Git selon la configuration spécifiée.
@@ -229,6 +287,26 @@ Cette fonctionnalité permet d'éviter qu'un seul fichier problématique ne bloq
 4. Le script crée un commit avec un message standardisé
 5. Le script pousse les changements vers le dépôt distant
 6. Le script ferme les issues mentionnées dans le message de commit
+
+## Tests
+
+Le projet utilise Jest pour les tests unitaires. Vous pouvez exécuter les tests avec les commandes suivantes:
+
+```bash
+# Exécuter tous les tests
+npm test
+
+# Exécuter les tests en mode watch
+npm run test:watch
+
+# Exécuter les tests avec couverture
+npm run test:coverage
+```
+
+Les tests sont organisés par module dans le dossier `tests/`:
+- `tests/models/` - Tests pour les modèles de données
+- `tests/services/` - Tests pour les services
+- `tests/utils/` - Tests pour les utilitaires
 
 ## Logging
 
