@@ -1,1 +1,5 @@
-
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/nkankreone/b2b.atikpa.com
+    - /bin/rsync -avz --exclude-from='.gitignore' ./ $DEPLOYPATH/
